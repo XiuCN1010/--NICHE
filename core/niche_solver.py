@@ -229,6 +229,17 @@ def sample(rng: random.Random, dist: Dict[str, float]) -> str:
 # 5. 世界推进（最小确定性动力学）
 # ----------------------------------------------------------------------------
 
+def step_threat(trng: random.Random, dist: float) -> float:
+    """威胁的随机游走 —— ⚠️ 单一事实来源：`rollout` 与 `analyze` 必须调用同一个函数。
+
+    2026-10-12 修复：原先 `rollout` 里写成 `clamp01(dist + Δ) * 60.0`，而 clamp01 是按
+    [0,1] 设计的 —— dist=40 时 (40+Δ) 会被夹成 1.0，再乘 60 → **一旦触发就永久锁死在 60**
+    （威胁永远最远，flee 永不触发）。而 `analyze` 里是正确写法。后果：两条路径跑的不是
+    同一个世界，`--sweep` 与 `--analyze` 的数字不可比，而 D1 #7/#8 恰恰要对照这两张表。
+    """
+    return max(1.0, min(60.0, dist + trng.uniform(-6.0, 4.0)))
+
+
 def step_world(w: World, d: Drive, act: str) -> None:
     """执行一步。这里是"环境↔状态"唯一的耦合点，也是 ρ（环境耦合度）的来源。"""
     d.hydration = clamp01(d.hydration - 0.012)
@@ -256,8 +267,7 @@ def rollout(w: World, d: Drive, actions: List[Action], cfg: SolverConfig,
     prev = None
     for _ in range(steps):
         if trng.random() < 0.05:                 # 威胁偶靠近/远离
-            w.threat_dist = clamp01(w.threat_dist + trng.uniform(-6.0, 4.0)) * 60.0
-            w.threat_dist = max(1.0, min(60.0, w.threat_dist))
+            w.threat_dist = step_threat(trng, w.threat_dist)
         U, _ = score_actions(w, d, actions, cfg, prev=prev)
         dist = softmax(U, cfg.temperature)
         act = sample(rng, dist)
@@ -412,6 +422,14 @@ def selftest() -> None:
     assert h1 == h2, "同 seed 结果不一致 → 存在隐藏随机源"
     print("✓ (8) 同 seed 完全可复现（黄金 trace 成立的前提）")
 
+    # (9) 跨路径一致性：rollout 与 analyze 必须跑同一个世界（2026-10-12 加，守 step_threat）
+    c9 = SolverConfig(temperature=0.05, aggregation="geometric", commitment=1.0)
+    h_roll = rollout(World(), Drive(), acts, c9, steps=600)
+    h_analy = analyze(c9, steps=600)["hist"]
+    assert h_roll == h_analy, \
+        "rollout 与 analyze 产出不同历史 → 两条路径的世界推进不一致（--sweep 与 --analyze 不可比）"
+    print("✓ (9) rollout 与 analyze 跑出完全相同的历史（跨路径一致 → 两张表可比）")
+
     print("\nselftest ALL PASS")
 
 
@@ -462,7 +480,7 @@ def analyze(base: SolverConfig, steps: int = 600) -> Dict[str, float]:
     hist: List[str] = []
     for _ in range(steps):
         if trng.random() < 0.05:
-            world.threat_dist = max(1.0, min(60.0, world.threat_dist + trng.uniform(-6.0, 4.0)))
+            world.threat_dist = step_threat(trng, world.threat_dist)
         U, _ = score_actions(world, drive, acts, cfg, prev=prev)
         P = softmax(U, cfg.temperature)
         a = sample(rng, P)
@@ -485,6 +503,7 @@ def analyze(base: SolverConfig, steps: int = 600) -> Dict[str, float]:
         "mean_confidence": conf,
         "switch_rate": switch_rate(hist),
         "greedy_action_count": len(greedy),
+        "hist": hist,                     # 供 selftest (9) 做跨路径一致性校验
     }
 
 
