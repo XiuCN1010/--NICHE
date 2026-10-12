@@ -54,7 +54,7 @@ def curve_linear(x: float, m: float = 1.0, k: float = 1.0, b: float = 0.0, c: fl
 def curve_logistic(x: float, m: float = 8.0, k: float = 1.0, b: float = 0.0, c: float = 0.5) -> float:
     """标准 logistic：拐点 c、斜率 m、纵向平移 b。（k 在此族中不使用，仅为统一签名）
 
-    ⚠️ 注：GDC 讲义流传的转录式 "k * 1/(1+(1000 e m^(-1*x+c)))+b" 疑似 OCR/排版错误，
+    注：GDC 讲义流传的转录式 "k * 1/(1+(1000 e m^(-1*x+c)))+b" 疑似 OCR/排版错误，
     这里用等价语义的标准写法（55% 处的斜率由 m 控制），参数含义与讲义一致。
     """
     return clamp01(1.0 / (1.0 + math.exp(-m * (x - c))) + b)
@@ -69,7 +69,7 @@ CURVES = {"linear": curve_linear, "logistic": curve_logistic}
 
 @dataclass
 class World:
-    """环境侧：玩家能改的都在这一层。"""
+    """环境侧：能改的都在这一层。"""
     water_dist: float = 6.0     # 到水源的距离 (m)
     heat_dist: float = 12.0     # 到热源的距离 (m)
     threat_dist: float = 40.0   # 到威胁物的距离 (m)
@@ -79,7 +79,7 @@ class World:
 
 @dataclass
 class Drive:
-    """生物内部状态：玩家只能通过环境间接影响。"""
+    """生物内部状态：只能通过环境间接影响。"""
     hydration: float = 0.6      # 1=完全满足
     warmth: float = 0.6
     energy: float = 0.8
