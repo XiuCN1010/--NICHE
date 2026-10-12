@@ -191,7 +191,7 @@ def score_actions(w: World, d: Drive, actions: List[Action], cfg: SolverConfig,
     U: Dict[str, float] = {}
     trace: Dict[str, List[Tuple[str, float, float, float]]] = {}
     for a in actions:
-        rows = [c.evaluate(w, d) for c in a.considerations]
+        rows = [c.evaluate(w, d) for c in a.considerations]  #每一个参与决策的参数
         trace[a.name] = [(c.name, r[1], r[2], r[0]) for c, r in zip(a.considerations, rows)]
         u = a.weight * aggregate([r[2] for r in rows], cfg.aggregation)
         if prev is not None and a.name == prev:
